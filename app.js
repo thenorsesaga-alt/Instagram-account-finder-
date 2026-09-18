@@ -70,16 +70,46 @@ function openSheet(title, bodyHtml, onSubmit) {
   backdrop.querySelector("#sheet-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const errorEl = backdrop.querySelector("#sheet-error");
+    const saveBtn = backdrop.querySelector('button[type="submit"]');
+    const originalLabel = saveBtn.textContent;
     errorEl.hidden = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
     const formData = new FormData(e.target);
+    const setStatus = (label) => {
+      saveBtn.textContent = label;
+    };
     try {
-      await onSubmit(formData);
+      await onSubmit(formData, setStatus);
       close();
     } catch (err) {
       errorEl.textContent = err.message || "Something went wrong";
       errorEl.hidden = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalLabel;
     }
   });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1]);
+    reader.onerror = () => reject(new Error("Couldn't read that file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzeProductFile(file) {
+  const pdfBase64 = await fileToBase64(file);
+  const res = await fetch("/api/analyze-product", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pdfBase64, mimeType: file.type || "application/pdf" }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Analysis failed");
+  return data;
 }
 
 // ---------------------------------------------------------------
@@ -144,13 +174,45 @@ async function renderProducts() {
       `<div class="field">
          <label for="p-name">Product name</label>
          <input id="p-name" name="name" required>
+       </div>
+       <div class="field">
+         <label for="p-url">Product URL (optional)</label>
+         <input id="p-url" name="product_url" type="url" placeholder="https://...">
+       </div>
+       <div class="field">
+         <label for="p-price">Price (optional)</label>
+         <input id="p-price" name="price" type="number" step="0.01" min="0" placeholder="9.99">
+       </div>
+       <div class="field">
+         <label for="p-file">Ebook or PDF (optional -- Gemini reads it automatically)</label>
+         <input id="p-file" name="file" type="file" accept="application/pdf">
        </div>`,
-      async (formData) => {
+      async (formData, setStatus) => {
         const name = formData.get("name").trim();
         if (!name) throw new Error("Give it a name");
-        const { error } = await supabaseClient.from("products").insert({ name });
+
+        const row = { name };
+
+        const url = formData.get("product_url");
+        if (url) row.product_url = url;
+
+        const price = formData.get("price");
+        if (price) row.price = parseFloat(price);
+
+        const file = formData.get("file");
+        if (file && file.size > 0) {
+          if (file.size > 4 * 1024 * 1024) {
+            throw new Error("Keep the PDF under 4MB for now -- try a smaller export or an excerpt");
+          }
+          setStatus("Analyzing with Gemini...");
+          const analysis = await analyzeProductFile(file);
+          Object.assign(row, analysis);
+        }
+
+        setStatus("Saving...");
+        const { error } = await supabaseClient.from("products").insert(row);
         if (error) throw error;
-        showToast("Product added");
+        showToast(row.category ? "Product added and analyzed" : "Product added");
         renderProducts();
       }
     );
@@ -181,16 +243,19 @@ async function renderProducts() {
   }
 
   listEl.innerHTML = data
-    .map(
-      (p) => `
+    .map((p) => {
+      const meta = p.category
+        ? `<span class="chip">${escapeHtml(p.category)}</span>${escapeHtml(p.description || "")}`
+        : `Added ${new Date(p.created_at).toLocaleDateString()}`;
+      return `
     <div class="list-row">
       <div class="list-row-main">
         <div class="list-row-title">${escapeHtml(p.name)}</div>
-        <div class="list-row-meta">Added ${new Date(p.created_at).toLocaleDateString()}</div>
+        <div class="list-row-meta">${meta}</div>
       </div>
     </div>
-  `
-    )
+  `;
+    })
     .join("");
 }
 
