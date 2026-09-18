@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Creator Outreach</title>
+<meta name="theme-color" content="#14171F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <span class="app-name">Creator Outreach</span>
+  </header>
+
+  <main id="view-root" class="view-root">
+    <!-- views render here -->
+  </main>
+
+  <nav class="tab-bar" aria-label="Main">
+    <button class="tab-btn" data-view="dashboard" aria-current="page">Dashboard</button>
+    <button class="tab-btn" data-view="products">Products</button>
+    <button class="tab-btn" data-view="creators">Creators</button>
+  </nav>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
