@@ -236,7 +236,7 @@ function openDiscoverSheet(onAdded) {
             btn.textContent = "Adding...";
             try {
               const { error } = await supabaseClient.from("creators").insert({
-                username: r.customUrl || r.channelId,
+                username: (r.customUrl || r.channelId).replace(/^@/, ""),
                 platform: "youtube",
                 profile_url: `https://youtube.com/channel/${r.channelId}`,
                 bio: r.description || null,
