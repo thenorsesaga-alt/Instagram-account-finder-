@@ -24,6 +24,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function truncate(str, max) {
+  return str.length > max ? str.slice(0, max).trimEnd() + "..." : str;
+}
+
 function emptyStateHtml(title, message) {
   return `<div class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p></div>`;
 }
@@ -87,6 +91,51 @@ function openSheet(title, bodyHtml, onSubmit) {
       errorEl.hidden = false;
       saveBtn.disabled = false;
       saveBtn.textContent = originalLabel;
+    }
+  });
+}
+
+function openDetailSheet(title, rows, onDelete) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "sheet-backdrop";
+  const rowsHtml = rows
+    .filter((r) => r.value !== null && r.value !== undefined && r.value !== "")
+    .map((r) => {
+      const value = r.isLink
+        ? `<a href="${escapeHtml(r.value)}" target="_blank" rel="noopener">${escapeHtml(r.value)}</a>`
+        : escapeHtml(r.value);
+      return `<div class="detail-row"><div class="detail-label">${escapeHtml(r.label)}</div><div class="detail-value">${value}</div></div>`;
+    })
+    .join("");
+
+  backdrop.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2 class="sheet-title">${escapeHtml(title)}</h2>
+      ${rowsHtml || '<p class="detail-value">Nothing else recorded yet.</p>'}
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-secondary" id="detail-close">Close</button>
+        <button type="button" class="btn btn-danger" id="detail-delete">Delete</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const close = () => backdrop.remove();
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  backdrop.querySelector("#detail-close").addEventListener("click", close);
+  backdrop.querySelector("#detail-delete").addEventListener("click", async () => {
+    const deleteBtn = backdrop.querySelector("#detail-delete");
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = "Deleting...";
+    try {
+      await onDelete();
+      close();
+    } catch (err) {
+      showToast(err.message || "Couldn't delete");
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = "Delete";
     }
   });
 }
@@ -257,6 +306,31 @@ async function renderProducts() {
   `;
     })
     .join("");
+
+  listEl.querySelectorAll(".list-row").forEach((rowEl, i) => {
+    rowEl.addEventListener("click", () => {
+      const p = data[i];
+      openDetailSheet(
+        p.name,
+        [
+          { label: "Description", value: p.description },
+          { label: "Category", value: p.category },
+          { label: "Target audience", value: p.target_audience },
+          { label: "Problems solved", value: p.problems_solved },
+          { label: "Benefits", value: p.benefits },
+          { label: "Keywords", value: p.keywords },
+          { label: "Product URL", value: p.product_url, isLink: true },
+          { label: "Price", value: p.price != null ? `$${p.price}` : null },
+        ],
+        async () => {
+          const { error } = await supabaseClient.from("products").delete().eq("id", p.id);
+          if (error) throw error;
+          showToast("Product deleted");
+          renderProducts();
+        }
+      );
+    });
+  });
 }
 
 // ---------------------------------------------------------------
@@ -284,13 +358,42 @@ async function renderCreators() {
            <option value="instagram">Instagram</option>
            <option value="youtube">YouTube</option>
          </select>
+       </div>
+       <div class="field">
+         <label for="c-profile-url">Profile URL (optional)</label>
+         <input id="c-profile-url" name="profile_url" type="url" placeholder="https://...">
+       </div>
+       <div class="field">
+         <label for="c-niche">Niche (optional)</label>
+         <input id="c-niche" name="niche" placeholder="e.g. fitness, productivity">
+       </div>
+       <div class="field">
+         <label for="c-bio">Bio (optional)</label>
+         <textarea id="c-bio" name="bio" rows="3"></textarea>
+       </div>
+       <div class="field">
+         <label for="c-email">Email (optional)</label>
+         <input id="c-email" name="email" type="email">
+       </div>
+       <div class="field">
+         <label for="c-website">Website (optional)</label>
+         <input id="c-website" name="website" type="url" placeholder="https://...">
+       </div>
+       <div class="field">
+         <label for="c-notes">Notes (optional)</label>
+         <textarea id="c-notes" name="notes" rows="2"></textarea>
        </div>`,
       async (formData) => {
         const username = formData.get("username").trim().replace(/^@/, "");
         if (!username) throw new Error("Enter a username");
-        const { error } = await supabaseClient
-          .from("creators")
-          .insert({ username, platform: formData.get("platform") });
+
+        const row = { username, platform: formData.get("platform") };
+        ["profile_url", "niche", "bio", "email", "website", "notes"].forEach((key) => {
+          const val = formData.get(key);
+          if (val) row[key] = val;
+        });
+
+        const { error } = await supabaseClient.from("creators").insert(row);
         if (error) throw error;
         showToast("Creator added");
         renderCreators();
@@ -323,18 +426,48 @@ async function renderCreators() {
   }
 
   listEl.innerHTML = data
-    .map(
-      (c) => `
+    .map((c) => {
+      const metaParts = [`<span class="chip">${escapeHtml(c.platform)}</span>`];
+      if (c.niche) metaParts.push(`<span class="chip">${escapeHtml(c.niche)}</span>`);
+      metaParts.push(escapeHtml(c.bio ? truncate(c.bio, 60) : c.status));
+      return `
     <div class="list-row ${c.status === "qualified" ? "tier-hot" : ""}">
       <div class="list-row-main">
         <div class="list-row-title">@${escapeHtml(c.username)}</div>
-        <div class="list-row-meta"><span class="chip">${escapeHtml(c.platform)}</span>${escapeHtml(c.status)}</div>
+        <div class="list-row-meta">${metaParts.join("")}</div>
       </div>
       ${c.overall_score != null ? `<div class="list-row-score">${c.overall_score}</div>` : ""}
     </div>
-  `
-    )
+  `;
+    })
     .join("");
+
+  listEl.querySelectorAll(".list-row").forEach((rowEl, i) => {
+    rowEl.addEventListener("click", () => {
+      const c = data[i];
+      openDetailSheet(
+        `@${c.username}`,
+        [
+          { label: "Platform", value: c.platform },
+          { label: "Status", value: c.status },
+          { label: "Followers", value: c.followers_count != null ? String(c.followers_count) : null },
+          { label: "Overall score", value: c.overall_score != null ? String(c.overall_score) : null },
+          { label: "Niche", value: c.niche },
+          { label: "Bio", value: c.bio },
+          { label: "Email", value: c.email },
+          { label: "Website", value: c.website, isLink: true },
+          { label: "Profile URL", value: c.profile_url, isLink: true },
+          { label: "Notes", value: c.notes },
+        ],
+        async () => {
+          const { error } = await supabaseClient.from("creators").delete().eq("id", c.id);
+          if (error) throw error;
+          showToast("Creator deleted");
+          renderCreators();
+        }
+      );
+    });
+  });
 }
 
 // ---------------------------------------------------------------

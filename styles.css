@@ -181,6 +181,7 @@ body {
 
 .btn-primary { background: var(--accent); color: #14171F; }
 .btn-secondary { background: var(--surface-2); color: var(--text); }
+.btn-danger { background: var(--danger); color: #14171F; }
 
 .btn:focus-visible {
   outline: 2px solid var(--accent);
@@ -222,6 +223,24 @@ body {
   color: var(--text-muted);
 }
 
+.field textarea {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
 .error-text {
   color: var(--danger);
   font-size: 0.8rem;
@@ -237,7 +256,28 @@ body {
   padding: 0.9rem 0 0.9rem 0.75rem;
   border-bottom: 1px solid var(--border);
   border-left: 3px solid var(--border);
+  cursor: pointer;
 }
+
+.detail-row {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-row:last-of-type { border-bottom: none; }
+
+.detail-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.detail-value {
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.detail-value a { color: var(--accent); }
 
 .list-row.tier-hot { border-left-color: var(--accent); }
 .list-row.tier-warm { border-left-color: var(--success); }
