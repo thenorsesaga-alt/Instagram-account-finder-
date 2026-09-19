@@ -101,7 +101,7 @@ function openSheet(title, bodyHtml, onSubmit) {
   });
 }
 
-function openDetailSheet(title, rows, onDelete) {
+function openDetailSheet(title, rows, onDelete, onAnalyze) {
   const backdrop = document.createElement("div");
   backdrop.className = "sheet-backdrop";
   const rowsHtml = rows
@@ -118,8 +118,10 @@ function openDetailSheet(title, rows, onDelete) {
     <div class="sheet" role="dialog" aria-modal="true">
       <h2 class="sheet-title">${escapeHtml(title)}</h2>
       ${rowsHtml || '<p class="detail-value">Nothing else recorded yet.</p>'}
+      <p class="error-text" id="detail-error" hidden></p>
       <div class="sheet-actions">
         <button type="button" class="btn btn-secondary" id="detail-close">Close</button>
+        ${onAnalyze ? '<button type="button" class="btn btn-primary" id="detail-analyze">Analyze</button>' : ""}
         <button type="button" class="btn btn-danger" id="detail-delete">Delete</button>
       </div>
     </div>
@@ -144,6 +146,25 @@ function openDetailSheet(title, rows, onDelete) {
       deleteBtn.textContent = "Delete";
     }
   });
+
+  if (onAnalyze) {
+    backdrop.querySelector("#detail-analyze").addEventListener("click", async () => {
+      const analyzeBtn = backdrop.querySelector("#detail-analyze");
+      const errorEl = backdrop.querySelector("#detail-error");
+      errorEl.hidden = true;
+      analyzeBtn.disabled = true;
+      analyzeBtn.textContent = "Analyzing...";
+      try {
+        await onAnalyze();
+        close();
+      } catch (err) {
+        errorEl.textContent = err.message || "Analysis failed";
+        errorEl.hidden = false;
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = "Analyze";
+      }
+    });
+  }
 }
 
 function openDiscoverSheet(onAdded) {
@@ -561,6 +582,9 @@ async function renderCreators() {
           { label: "Followers", value: c.followers_count != null ? String(c.followers_count) : null },
           { label: "Overall score", value: c.overall_score != null ? String(c.overall_score) : null },
           { label: "Niche", value: c.niche },
+          { label: "Content themes", value: c.content_themes },
+          { label: "Audience", value: c.audience_description },
+          { label: "Analysis notes", value: c.analysis_notes },
           { label: "Bio", value: c.bio },
           { label: "Email", value: c.email },
           { label: "Website", value: c.website, isLink: true },
@@ -571,6 +595,27 @@ async function renderCreators() {
           const { error } = await supabaseClient.from("creators").delete().eq("id", c.id);
           if (error) throw error;
           showToast("Creator deleted");
+          renderCreators();
+        },
+        async () => {
+          const res = await fetch("/api/analyze-creator", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: c.username,
+              platform: c.platform,
+              bio: c.bio,
+              niche: c.niche,
+            }),
+          });
+          const analysis = await res.json();
+          if (!res.ok) throw new Error(analysis.error || "Analysis failed");
+          const { error } = await supabaseClient
+            .from("creators")
+            .update({ ...analysis, status: "analyzed" })
+            .eq("id", c.id);
+          if (error) throw error;
+          showToast("Creator analyzed");
           renderCreators();
         }
       );
