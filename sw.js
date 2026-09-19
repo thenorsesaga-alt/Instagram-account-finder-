@@ -1,4 +1,4 @@
-const CACHE_NAME = "creator-outreach-v1";
+const CACHE_NAME = "creator-outreach-v2";
 const SHELL_FILES = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
