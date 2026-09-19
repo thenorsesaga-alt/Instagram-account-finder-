@@ -28,6 +28,12 @@ function truncate(str, max) {
   return str.length > max ? str.slice(0, max).trimEnd() + "..." : str;
 }
 
+function formatCount(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+
 function emptyStateHtml(title, message) {
   return `<div class="empty-state"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p></div>`;
 }
@@ -136,6 +142,102 @@ function openDetailSheet(title, rows, onDelete) {
       showToast(err.message || "Couldn't delete");
       deleteBtn.disabled = false;
       deleteBtn.textContent = "Delete";
+    }
+  });
+}
+
+function openDiscoverSheet(onAdded) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "sheet-backdrop";
+  backdrop.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <h2 class="sheet-title">Find creators on YouTube</h2>
+      <form id="discover-form">
+        <div class="field">
+          <label for="d-query">Niche or keyword</label>
+          <input id="d-query" name="query" required placeholder="e.g. productivity, personal finance">
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn btn-secondary" id="discover-close">Close</button>
+          <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+      </form>
+      <div id="discover-results"></div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const close = () => backdrop.remove();
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  backdrop.querySelector("#discover-close").addEventListener("click", close);
+
+  backdrop.querySelector("#discover-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const resultsEl = backdrop.querySelector("#discover-results");
+    const searchBtn = backdrop.querySelector('button[type="submit"]');
+    const query = new FormData(e.target).get("query").trim();
+    if (!query) return;
+
+    searchBtn.disabled = true;
+    searchBtn.textContent = "Searching...";
+    resultsEl.innerHTML = "";
+
+    try {
+      const res = await fetch(`/api/search-youtube?query=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Search failed");
+
+      if (!data.results || !data.results.length) {
+        resultsEl.innerHTML = emptyStateHtml("No channels found", "Try a broader keyword.");
+      } else {
+        resultsEl.innerHTML = data.results
+          .map(
+            (r, i) => `
+          <div class="list-row" style="cursor: default;">
+            <div class="list-row-main">
+              <div class="list-row-title">${escapeHtml(r.title)}</div>
+              <div class="list-row-meta">${
+                r.subscriberCount != null ? formatCount(r.subscriberCount) + " subscribers" : ""
+              }</div>
+            </div>
+            <button type="button" class="btn btn-secondary" data-idx="${i}">Add</button>
+          </div>
+        `
+          )
+          .join("");
+
+        resultsEl.querySelectorAll("button[data-idx]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const r = data.results[Number(btn.dataset.idx)];
+            btn.disabled = true;
+            btn.textContent = "Adding...";
+            try {
+              const { error } = await supabaseClient.from("creators").insert({
+                username: r.customUrl || r.channelId,
+                platform: "youtube",
+                profile_url: `https://youtube.com/channel/${r.channelId}`,
+                bio: r.description || null,
+                followers_count: r.subscriberCount,
+              });
+              if (error) throw error;
+              btn.textContent = "Added";
+              showToast(`Added ${r.title}`);
+              onAdded();
+            } catch (err) {
+              btn.disabled = false;
+              btn.textContent = "Add";
+              showToast(err.message || "Couldn't add");
+            }
+          });
+        });
+      }
+    } catch (err) {
+      resultsEl.innerHTML = `<p class="error-text">${escapeHtml(err.message)}</p>`;
+    } finally {
+      searchBtn.disabled = false;
+      searchBtn.textContent = "Search";
     }
   });
 }
@@ -340,9 +442,15 @@ async function renderProducts() {
 async function renderCreators() {
   root.innerHTML = `
     <h1 class="section-heading">Creators</h1>
+    <button class="btn btn-secondary btn-block" id="discover-youtube">Find creators on YouTube</button>
     <div id="creator-list">${emptyStateHtml("Loading...", "One moment.")}</div>
     <button class="fab" id="add-creator" aria-label="Add creator">+</button>
   `;
+
+  document.getElementById("discover-youtube").addEventListener("click", () => {
+    if (!requireConnection()) return;
+    openDiscoverSheet(() => renderCreators());
+  });
 
   document.getElementById("add-creator").addEventListener("click", () => {
     if (!requireConnection()) return;
@@ -420,7 +528,7 @@ async function renderCreators() {
   if (!data.length) {
     listEl.innerHTML = emptyStateHtml(
       "No creators yet",
-      "Add one by username, or wait for Phase 6's automatic discovery."
+      "Try \"Find creators on YouTube\" above, or add one by username."
     );
     return;
   }
