@@ -5,7 +5,7 @@
 // GEMINI_API_KEY and YOUTUBE_API_KEY must be added as Secrets in:
 // Workers & Pages -> this project -> Settings -> Variables and Secrets.
 
-const GEMINI_MODEL = "gemini-3.5-flash-lite";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 export default {
   async fetch(request, env) {
