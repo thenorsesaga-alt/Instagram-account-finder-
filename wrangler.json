@@ -8,7 +8,7 @@
     "run_worker_first": ["/api/*"]
   },
   "vars": {
-    "GEMINI_API_KEY": "AQ.Ab8RN6Kq0xz9PamtO-RbW0ecXrK4XPyip_JSlG9WOtcPuwpIrA",
+    "GEMINI_API_KEY": "AQ.Ab8RN6IS2bWh7jjBNan7IGeTN47oPM_mDPoCdFHlPLGV5mDVaw",
     "YOUTUBE_API_KEY": "AIzaSyB4KcKIJARx8_zsBGK9aaV1ON86RmY-6H4"
   }
 }
