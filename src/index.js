@@ -106,7 +106,7 @@ Base every field only on what the document actually contains. Do not invent deta
 
     const data = await geminiRes.json();
     if (!geminiRes.ok) {
-      return json({ error: data.error?.message || `Gemini returned ${geminiRes.status}` }, geminiRes.status);
+      return json({ error: `${data.error?.message || `Gemini returned ${geminiRes.status}`} [debug: model=${GEMINI_MODEL}, key ends ...${apiKey.slice(-6)}]` }, geminiRes.status);
     }
 
     const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -179,7 +179,7 @@ Return:
 
     const data = await geminiRes.json();
     if (!geminiRes.ok) {
-      return json({ error: data.error?.message || `Gemini returned ${geminiRes.status}` }, geminiRes.status);
+      return json({ error: `${data.error?.message || `Gemini returned ${geminiRes.status}`} [debug: model=${GEMINI_MODEL}, key ends ...${apiKey.slice(-6)}]` }, geminiRes.status);
     }
 
     const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
